@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0f14">
+<title>Hide & Seek</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"></script>
+<style>
+:root{--bg:#0b0f14;--pan:#10151c;--bd:#1f2933;--tx:#e6edf3;--mu:#8b98a5;--ac:#2dd4bf;--rd:#ef4444;--am:#f59e0b;--gn:#22c55e}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden}
+#map{position:fixed;inset:0}
+#map.night .leaflet-tile-pane{filter:brightness(.55) saturate(.7)}
+button,select,input{font:inherit}
+button{border:1px solid var(--bd);border-radius:8px;padding:12px 14px;background:#18202a;color:var(--tx);font-weight:600;letter-spacing:.02em}
+button:active{background:#222d3a}
+button.p{background:var(--ac);border-color:var(--ac);color:#04201c}
+button.g{background:var(--gn);border-color:var(--gn);color:#04200e}
+button.r{background:var(--rd);border-color:var(--rd);color:#fff}
+button:disabled{opacity:.4}
+input,select{width:100%;padding:11px;border-radius:8px;border:1px solid var(--bd);background:#0d1218;color:var(--tx)}
+.hidden{display:none!important}
+.panel{position:fixed;z-index:1000;background:rgba(11,15,20,.93);backdrop-filter:blur(8px)}
+.row{display:flex;gap:8px;align-items:center}.between{justify-content:space-between}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label{display:block;font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);margin:12px 0 5px}
+.mu{color:var(--mu)}.small{font-size:12px}.wide{width:100%;margin-top:8px}
+.chk{display:flex;gap:10px;align-items:center;font-size:13px;margin:12px 0 0;text-transform:none;letter-spacing:0;font-weight:400;color:var(--tx)}
+.chk input{width:auto}
+#home{inset:0;z-index:2600;padding:28px 22px;overflow:auto}
+#home h1{margin:14px 0 2px;font-size:28px;font-weight:800;letter-spacing:.14em}
+#home .sub{font-size:13px;color:var(--mu);margin-bottom:10px}
+#home button{margin-top:8px}
+.sheet{left:0;right:0;bottom:0;max-height:64vh;overflow:auto;padding:16px;border-radius:14px 14px 0 0;z-index:2000;border-top:1px solid var(--bd)}
+.code{font-family:ui-monospace,Menlo,monospace;font-size:26px;font-weight:700;letter-spacing:.3em;color:var(--ac)}
+.pl{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin:5px 0;background:var(--pan);border:1px solid var(--bd);border-radius:8px;font-size:14px}
+.pill{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.pill.seeker{color:var(--rd)}.pill.hider{color:var(--ac)}
+.chip{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;border:1px solid var(--bd);border-radius:6px}
+.chip.seeker{color:var(--rd);border-color:var(--rd)}.chip.hider{color:var(--ac);border-color:var(--ac)}
+#hud{top:0;left:0;right:0;padding:calc(8px + env(safe-area-inset-top)) 14px 8px;z-index:2000;border-bottom:1px solid var(--bd)}
+#phase{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mu)}
+#timer{font-family:ui-monospace,Menlo,monospace;font-size:28px;font-weight:700;font-variant-numeric:tabular-nums}
+#hud .small{margin-top:2px;color:var(--mu)}
+#bar{bottom:0;left:0;right:0;padding:10px 12px calc(10px + env(safe-area-inset-bottom));z-index:2000;border-top:1px solid var(--bd)}
+#status{font-weight:600;text-align:center;font-size:13px;color:var(--tx)}#status.bad{color:var(--am)}
+#acts{display:flex;gap:8px;margin-top:8px}#acts button{flex:1;padding:10px 4px;font-size:13px}
+#acts .big{flex:2;font-size:16px;letter-spacing:.12em;background:var(--rd);border-color:var(--rd);color:#fff}
+.pw small{display:block;font-weight:400;font-size:11px;color:var(--mu);margin-top:2px}
+#near{position:fixed;z-index:2100;top:calc(88px + env(safe-area-inset-top));left:12px;right:12px;padding:10px;border-radius:8px;text-align:center;font-weight:600;font-size:14px;border:1px solid rgba(255,255,255,.15)}
+#toasts{position:fixed;z-index:2500;left:12px;right:12px;top:calc(140px + env(safe-area-inset-top));display:flex;flex-direction:column;gap:6px;pointer-events:none}
+.toast{padding:10px 12px;border-radius:8px;background:rgba(16,21,28,.96);border:1px solid var(--bd);border-left:3px solid var(--mu);font-size:13px}
+.toast.warn{border-left-color:var(--am)}.toast.good{border-left-color:var(--gn)}.toast.tag{border-left-color:var(--rd)}.toast.sos{background:#7f1d1d;border-color:var(--rd)}
+#side,#side2{position:fixed;z-index:2000;display:flex;gap:8px;bottom:calc(150px + env(safe-area-inset-bottom))}
+#side{left:10px}#side2{right:10px}
+.sb{position:relative;width:46px;height:46px;padding:0;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(16,21,28,.94)}
+#bSOS{width:auto;padding:0 16px;height:46px;background:#7f1d1d;border-color:var(--rd);color:#fff;font-weight:800;letter-spacing:.14em}
+.badge{position:absolute;top:-6px;right:-6px;min-width:18px;height:18px;border-radius:9px;background:var(--ac);color:#04201c;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 4px}
+.ic{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+#blind{position:fixed;inset:0;z-index:1500;background:var(--bg);display:flex;align-items:center;justify-content:center;text-align:center}
+#blind h2{letter-spacing:.2em;text-transform:uppercase;font-size:16px;margin:0 0 6px}
+.bigt{font-family:ui-monospace,Menlo,monospace;font-size:56px;font-weight:700;margin-top:10px}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:1200}
+#fx.rain{background:repeating-linear-gradient(105deg,transparent 0 7px,rgba(170,200,255,.2) 7px 8px);animation:rn .5s linear infinite}
+#fx.fog{background:rgba(220,230,240,.16)}
+@keyframes rn{to{background-position:-30px 60px}}
+.mkw{width:100%;display:flex;flex-direction:column;align-items:center;padding-top:3px}
+.mk{width:14px;height:14px;border-radius:50%;border:2px solid #fff}
+.mk.seeker{background:var(--rd);box-shadow:0 0 0 5px rgba(239,68,68,.28)}
+.mk.exposed{background:var(--am);box-shadow:0 0 0 5px rgba(245,158,11,.28)}
+.mk.goal{border-radius:2px;transform:rotate(45deg);background:var(--gn);box-shadow:0 0 0 5px rgba(34,197,94,.25)}
+.mk.spot{border-radius:2px;background:transparent;border-color:var(--ac)}
+.mk.sos{background:var(--rd);animation:pl 1s infinite}
+@keyframes pl{0%{box-shadow:0 0 0 0 rgba(239,68,68,.7)}100%{box-shadow:0 0 0 16px rgba(239,68,68,0)}}
+.mkw small{margin-top:4px;font-size:10px;font-weight:700;color:#fff;background:rgba(0,0,0,.7);border-radius:4px;padding:1px 5px;white-space:nowrap}
+#modal{position:fixed;inset:0;z-index:3000;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px}
+#mbox{background:var(--pan);border:1px solid var(--bd);border-radius:12px;padding:18px;max-width:420px;width:100%;max-height:85vh;overflow:auto}
+#mbox h2,#mbox h3{margin:0 0 8px;letter-spacing:.04em}
+#mbox h4{margin:16px 0 4px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu)}
+#mbox p{font-size:14px;line-height:1.45;margin:8px 0}
+.ph{margin:10px 0}.ph img{width:100%;border-radius:8px}
+.stat{background:var(--bg);border:1px solid var(--bd);border-radius:8px;padding:10px;text-align:center;font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.08em}
+.stat b{display:block;font-size:20px;color:var(--tx);letter-spacing:0;text-transform:none;margin-bottom:2px}
+.lock{opacity:.45}
+.btnlink{display:block;text-align:center;padding:13px;border-radius:8px;background:var(--rd);color:#fff;font-weight:700;text-decoration:none}
+a{color:var(--ac)}
+</style></head>
+<body>
+<div id="map"></div><div id="fx"></div>
+
+<div id="home" class="panel">
+  <h1>HIDE &amp; SEEK</h1>
+  <div class="sub">Real-world GPS game for groups</div>
+  <label>Callsign</label><input id="name" maxlength="14" placeholder="Your name">
+  <button class="p wide" id="bCreate">Create game</button>
+  <div class="row" style="margin-top:8px"><input id="code" placeholder="Room code" maxlength="5" autocapitalize="characters"><button class="g" id="bJoin" style="margin-top:0">Join</button></div>
+  <label class="chk"><input type="checkbox" id="sim"> Simulated GPS (test mode, tap the map to move)</label>
+  <label class="chk"><input type="checkbox" id="pranks"> Allow loud noise power-up on my phone</label>
+  <div class="grid" style="margin-top:6px"><button id="bTest">Test noise</button><button id="bStats">Stats</button></div>
+  <button class="wide" id="bHow">How to play</button>
+  <p class="mu small" style="margin-top:18px">Play safely: stay off roads, out of private property and unsafe areas. Do not run while looking at your phone. The SOS button is available throughout a game.</p>
+</div>
+
+<div id="lobby" class="panel sheet hidden">
+  <div class="row between"><div><span class="mu small">ROOM</span><br><span id="rcode" class="code"></span></div><button id="bShare">Invite</button></div>
+  <div id="plist" style="margin-top:8px"></div>
+  <div id="hostcfg" class="hidden">
+    <div class="grid">
+      <div><label>Mode</label><select id="mode"><option value="classic">Classic</option><option value="reverse">Reverse</option></select></div>
+      <div><label>Hiding time</label><select id="hide"><option value="30">30 s</option><option value="60" selected>1 min</option><option value="120">2 min</option><option value="180">3 min</option></select></div>
+      <div><label>Game length</label><select id="seek"><option value="300">5 min</option><option value="600" selected>10 min</option><option value="900">15 min</option><option value="1200">20 min</option><option value="1800">30 min</option></select></div>
+      <div><label>Radius <b id="radv" style="color:var(--tx)">150 m</b></label><input type="range" id="rad" min="50" max="500" step="10" value="150"></div>
+    </div>
+    <p class="mu small">Tap the map to move the play area. Tap a player to toggle seeker (random if none chosen).</p>
+    <div class="grid"><button id="bCenter">Center on me</button><button id="bBot">Add bot</button></div>
+    <button class="p wide" id="bStart">Start game</button>
+  </div>
+  <p id="info" class="mu small"></p>
+  <button class="wide" id="bLeave">Leave</button>
+</div>
+
+<div id="hud" class="panel hidden">
+  <div class="row between"><div id="phase"></div><div id="timer">0:00</div><div id="role" class="chip"></div></div>
+  <div class="row between small"><span id="env"></span><span id="alive"></span></div>
+  <div class="small" id="fitc" style="margin-top:2px"></div>
+</div>
+<div id="near" class="hidden"></div>
+<div id="toasts"></div>
+<div id="blind" class="hidden"><div><h2>Eyes closed</h2><div class="mu">Hiders are taking position</div><div id="btimer" class="bigt"></div></div></div>
+<div id="side" class="hidden"><button id="bSOS">SOS</button></div>
+<div id="side2" class="hidden">
+  <button class="sb" id="bFollow" aria-label="Recenter"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+  <button class="sb" id="bBoard" aria-label="Leaderboard"><svg class="ic" viewBox="0 0 24 24"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></button>
+  <button class="sb" id="bGal" aria-label="Photos"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="14" rx="2"/><circle cx="12" cy="13" r="3.5"/><path d="M8 6l1.5-2h5L16 6"/></svg><span class="badge" id="gcount">0</span></button>
+</div>
+<div id="bar" class="panel hidden"><div id="status"></div><div id="acts"></div></div>
+<div id="modal" class="hidden"><div id="mbox"></div></div>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+
+<script>
+/* ============ helpers & constants ============ */
+const $=s=>document.querySelector(s);
+const LS={get(k,d){try{const v=JSON.parse(localStorage.getItem(k));return v==null?d:v}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rad=x=>x*Math.PI/180;
+function dist(a,b){const R=6371e3,dA=rad(b.lat-a.lat),dO=rad(b.lng-a.lng);const h=Math.sin(dA/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dO/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+function offset(p,m,brg){const R=6371e3,d=m/R,b=rad(brg),la=rad(p.lat),lo=rad(p.lng);const la2=Math.asin(Math.sin(la)*Math.cos(d)+Math.cos(la)*Math.sin(d)*Math.cos(b));const lo2=lo+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(la),Math.cos(d)-Math.sin(la)*Math.sin(la2));return{lat:la2*180/Math.PI,lng:lo2*180/Math.PI};}
+function bearing(a,b){const y=Math.sin(rad(b.lng-a.lng))*Math.cos(rad(b.lat)),x=Math.cos(rad(a.lat))*Math.sin(rad(b.lat))-Math.sin(rad(a.lat))*Math.cos(rad(b.lat))*Math.cos(rad(b.lng-a.lng));return(Math.atan2(y,x)*180/Math.PI+360)%360;}
+const E=(msg,kind='info')=>({t:'event',msg,kind});
+const active=(p,id,now=Date.now())=>!!(p.pw&&p.pw[id]&&p.pw[id].until>now);
+
+const DETECT=40,TAG_RANGE=15,LEASH=15,GOAL_RANGE=15;
+const CLOSE_RANGE=10,BOARD_MS=30000,RELOCK_MS=20000;
+const PTS={close:1,tag:100,survive:50,goal:100};
+const POWERS={
+  ghost:{role:'hider',name:'Ghost',dur:20,cool:90,uses:2},
+  decoy:{role:'hider',name:'Decoy',dur:30,cool:60,uses:3},
+  stretch:{role:'hider',name:'Stretch',dur:30,cool:90,uses:2,modes:['classic']},
+  radar:{role:'seeker',name:'Radar',dur:6,cool:90,uses:3},
+  sonar:{role:'seeker',name:'Sonar',dur:30,cool:120,uses:2},
+  noise:{role:'seeker',name:'Noise',dur:3,cool:60,uses:3}
+};
+const NOISES={duck:'Quack',boing:'Boing',trombone:'Sad trombone',raspberry:'Raspberry',horn:'Air horn',cuckoo:'Cuckoo'};
+const ACH={first_tag:['First Tag','Tag your first hider'],hunter:['Master Hunter','Tag 3 hiders in one game'],survivor:['Ghost Town','Stay untagged until time runs out'],escape:['Great Escape','Reach the goal in Reverse mode'],walker:['Explorer','Walk 1 km in one game'],rain:['Rain Warrior','Finish a game in the rain'],night:['Night Owl','Finish a game at night'],photog:['Paparazzi','Share a proof photo'],squad:['Squad Goals','Play with 4+ players'],power:['Power Player','Use 3 power-ups in one game']};
+
+/* ============ state ============ */
+let isHost=false,me={id:null,name:''},peer=null,conns={},hostConn=null,sim=false,simTarget=null,simTimer=null,posTimer=null,watchId=null,myPos=null;
+let G=null,LB=null,V=null,screen='home',inGame=false,firstLobby=true,lastNear=0,lastOut=0,lastTag=null,gallery=[],fit={on:false,dist:0,last:null},actx=null,warnedBat=false,leaving=false,follow=true,wl=null;
+let board=[],noiseOn=LS.get('hs_noise',true);
+
+/* ============ map ============ */
+const map=L.map('map',{zoomControl:false}).setView([48.8566,2.3522],16);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+map.on('dragstart',()=>follow=false);
+let areaC=null,leashC=null,goalC=null,meM=null,meA=null;const mk={};const pingL=L.layerGroup().addTo(map);
+const mkHtml=(kind,label)=>`<div class="mkw"><div class="mk ${kind}"></div>${label?`<small>${esc(label)}</small>`:''}</div>`;
+function drawArea(c,r,fitIt){if(!c)return;const ll=[c.lat,c.lng];if(!areaC)areaC=L.circle(ll,{radius:r,color:'#2dd4bf',weight:2,dashArray:'8 6',fillOpacity:.05}).addTo(map);areaC.setLatLng(ll);areaC.setRadius(r);if(fitIt)map.fitBounds(areaC.getBounds(),{padding:[20,20],maxZoom:18});}
+function setMarks(list){const keep=new Set();list.forEach(o=>{keep.add(o.key);let m=mk[o.key];if(!m){m=mk[o.key]=L.marker([o.lat,o.lng],{interactive:false}).addTo(map);}m.setLatLng([o.lat,o.lng]);if(m._h!==o.html){m._h=o.html;m.setIcon(L.divIcon({className:'',html:o.html,iconSize:[80,40],iconAnchor:[40,10]}));}});Object.keys(mk).forEach(k=>{if(!keep.has(k)){map.removeLayer(mk[k]);delete mk[k];}});}
+function clearMap(){setMarks([]);pingL.clearLayers();[areaC,leashC,goalC].forEach(l=>l&&map.removeLayer(l));areaC=leashC=goalC=null;$('#map').classList.remove('night');$('#fx').className='';}
+function updateMe(){if(!myPos)return;const ll=[myPos.lat,myPos.lng];if(!meM){meM=L.circleMarker(ll,{radius:8,color:'#fff',weight:3,fillColor:'#2563eb',fillOpacity:1}).addTo(map);meA=L.circle(ll,{radius:10,color:'#2563eb',weight:1,fillOpacity:.1}).addTo(map);if(!LB&&!G)map.setView(ll,17);}meM.setLatLng(ll);meA.setLatLng(ll);meA.setRadius(Math.max(myPos.acc||5,3));if(follow&&screen==='game')map.panTo(ll,{animate:true,duration:.5});}
+map.on('click',e=>{const p={lat:e.latlng.lat,lng:e.latlng.lng};
+  if(sim&&inGame){simTarget=p;}
+  else if(isHost&&G&&G.phase==='lobby'){G.center=p;broadcastLobby();drawArea(p,G.radius,false);}});
+
+/* ============ ui helpers ============ */
+function toast(msg,kind='',ms=4500){const d=document.createElement('div');d.className='toast '+kind;d.textContent=msg;$('#toasts').appendChild(d);setTimeout(()=>d.remove(),ms);}
+function beep(f=880,ms=120){try{actx=actx||new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();const o=actx.createOscillator(),g=actx.createGain();o.frequency.value=f;g.gain.value=.15;o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+ms/1000);}catch(e){}}
+function buzz(p){try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}}
+function modal(h){$('#mbox').innerHTML=h;$('#modal').classList.remove('hidden');}
+function closeModal(){$('#modal').classList.add('hidden');}
+function showScreen(s){screen=s;$('#home').classList.toggle('hidden',s!=='home');$('#lobby').classList.toggle('hidden',s!=='lobby');const g=s==='game';['#hud','#bar','#side','#side2'].forEach(x=>$(x).classList.toggle('hidden',!g));}
+async function keepAwake(){try{wl=await navigator.wakeLock.request('screen');}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&inGame)keepAwake();});
+try{navigator.getBattery&&navigator.getBattery().then(b=>{b.addEventListener('levelchange',()=>{if(inGame&&b.level<.15&&!b.charging&&!warnedBat){warnedBat=true;toast('Battery below 15% — consider leaving the game','warn',8000);}});});}catch(e){}
+
+/* ============ networking ============ */
+function send(m){if(isHost)hostHandle('host',m);else if(hostConn&&hostConn.open)hostConn.send(m);}
+function deliver(id,m){if(id==='host')clientHandle(m);else if(conns[id]&&conns[id].open)conns[id].send(m);}
+function eachHuman(f){Object.keys(G.players).forEach(id=>{if(!G.players[id].bot)f(id);});}
+function broadcast(m){eachHuman(id=>deliver(id,m));}
+
+function needName(){const n=$('#name').value.trim();if(!n){toast('Enter your name first','warn');return null;}me.name=n;LS.set('hs_name',n);sim=$('#sim').checked;beep(1,1);return n;}
+$('#bCreate').onclick=()=>{if(needName())createGame();};
+$('#bJoin').onclick=()=>{if(needName())joinGame($('#code').value.trim().toUpperCase());};
+
+function createGame(){
+  isHost=true;me.id='host';
+  const code=Math.random().toString(36).slice(2,7).toUpperCase();
+  peer=new Peer('hsgame-'+code);
+  peer.on('open',()=>{G=newGame(code);addPlayer('host',me.name);showScreen('lobby');firstLobby=true;broadcastLobby();startGPS();});
+  peer.on('connection',c=>{c.on('open',()=>{conns[c.peer]=c;});c.on('data',m=>hostHandle(c.peer,m));c.on('close',()=>dropPlayer(c.peer));c.on('error',()=>{});});
+  peer.on('error',e=>{if(e.type==='unavailable-id'){try{peer.destroy();}catch(x){}createGame();}else{toast('Network error: '+e.type,'warn');}});
+}
+function joinGame(code){
+  if(code.length<4)return toast('Enter the room code','warn');
+  peer=new Peer();
+  const t=setTimeout(()=>{toast('Could not reach the game','warn');leave();},12000);
+  peer.on('open',id=>{me.id=id;hostConn=peer.connect('hsgame-'+code,{reliable:true});
+    hostConn.on('open',()=>{clearTimeout(t);send({t:'join',name:me.name});startGPS();});
+    hostConn.on('data',clientHandle);
+    hostConn.on('close',()=>{if(!leaving){toast('Disconnected from host','warn');leave();}});});
+  peer.on('error',e=>{clearTimeout(t);toast(e.type==='peer-unavailable'?'Game not found — check the code':'Network error: '+e.type,'warn');leave();});
+}
+function leave(){
+  if(leaving)return;leaving=true;
+  try{G&&clearInterval(G.tick);}catch(e){}
+  try{peer&&peer.destroy();}catch(e){}
+  if(watchId!=null&&navigator.geolocation)navigator.geolocation.clearWatch(watchId);watchId=null;
+  clearInterval(simTimer);clearInterval(posTimer);
+  G=null;LB=null;V=null;peer=null;conns={};hostConn=null;isHost=false;inGame=false;fit={on:false,dist:0,last:null};gallery=[];board=[];$('#gcount').textContent='0';
+  closeModal();clearMap();$('#near').classList.add('hidden');$('#blind').classList.add('hidden');showScreen('home');
+  leaving=false;
+}
+$('#bLeave').onclick=leave;
+
+/* ============ GPS ============ */
+function startGPS(){
+  clearInterval(posTimer);posTimer=setInterval(()=>{if(myPos)send({t:'pos',lat:myPos.lat,lng:myPos.lng,acc:myPos.acc});},1500);
+  if(sim){const j=()=>(Math.random()-.5)*.0004;onPos(48.8556+j(),2.2986+j(),5);
+    simTimer=setInterval(()=>{if(!simTarget||!myPos)return;const d=dist(myPos,simTarget);if(d<1.5){simTarget=null;return;}const q=offset(myPos,Math.min(4,d),bearing(myPos,simTarget));onPos(q.lat,q.lng,5);},500);return;}
+  if(!navigator.geolocation)return toast('GPS not supported on this device','warn');
+  watchId=navigator.geolocation.watchPosition(p=>onPos(p.coords.latitude,p.coords.longitude,p.coords.accuracy),e=>toast('GPS: '+e.message,'warn'),{enableHighAccuracy:true,maximumAge:1000,timeout:15000});
+}
+function onPos(lat,lng,acc){
+  myPos={lat,lng,acc};updateMe();
+  if(fit.on){if(!fit.last)fit.last={lat,lng};else{const d=dist(fit.last,myPos);if(d>=Math.max(3,Math.min(acc,25)*.4)){if(d<100)fit.dist+=d;fit.last={lat,lng};}}}
+  if(isHost&&G){const p=G.players.host;p.lat=lat;p.lng=lng;p.acc=acc;if(!G.center&&G.phase==='lobby'){G.center={lat,lng};broadcastLobby();drawArea(G.center,G.radius,true);}}
+}
+
+/* ============ HOST: game logic ============ */
+function newGame(code){return{code,mode:'classic',hide:60,seek:600,radius:150,center:null,goal:null,phase:'lobby',t0:0,players:{},env:{w:'clear',night:false,mult:1},ping:null,nextPing:0,boardAt:0,tick:null};}
+function addPlayer(id,name,bot){G.players[id]={id,name,role:'hider',lat:null,lng:null,acc:0,bot:!!bot,caught:false,reached:false,gone:false,expUntil:0,spot:null,pw:{},tags:0,photos:0,powers:0,outSince:0,decoy:null,score:0,closeSec:0,lp:null,stillSince:0};}
+function dropPlayer(id){if(!G||!G.players[id])return;const p=G.players[id];if(G.phase==='lobby'){delete G.players[id];broadcastLobby();}else{p.gone=true;broadcast(E(p.name+' left the game','warn'));}}
+function lobbyMsg(){return{t:'lobby',code:G.code,mode:G.mode,hide:G.hide,seek:G.seek,radius:G.radius,center:G.center,players:Object.values(G.players).map(p=>({id:p.id,name:p.name,role:p.role,bot:p.bot}))};}
+function broadcastLobby(){const m=lobbyMsg();eachHuman(id=>deliver(id,m));}
+function cfg(){G.mode=$('#mode').value;G.hide=+$('#hide').value;G.seek=+$('#seek').value;G.radius=+$('#rad').value;$('#radv').textContent=G.radius+' m';drawArea(G.center,G.radius,false);}
+['mode','hide','seek'].forEach(i=>$('#'+i).onchange=()=>{cfg();broadcastLobby();});
+$('#rad').oninput=cfg;$('#rad').onchange=()=>{cfg();broadcastLobby();};
+$('#bCenter').onclick=()=>{if(!myPos)return toast('Waiting for GPS…','warn');G.center={lat:myPos.lat,lng:myPos.lng};broadcastLobby();drawArea(G.center,G.radius,true);};
+$('#bBot').onclick=()=>{if(Object.keys(G.players).length>=8)return toast('Room is full','warn');const n=Object.values(G.players).filter(p=>p.bot).length+1;addPlayer('bot'+Date.now(),'Bot '+n,true);broadcastLobby();};
+$('#bStart').onclick=()=>startGame();
+$('#plist').onclick=e=>{if(!isHost||!G||G.phase!=='lobby')return;const r=e.target.closest('.pl');if(!r)return;const p=G.players[r.dataset.id];if(!p)return;p.role=p.role==='seeker'?'hider':'seeker';broadcastLobby();};
+
+function hostHandle(pid,m){
+  if(!G||!m)return;const p=G.players[pid];
+  switch(m.t){
+    case 'join':
+      if(G.phase!=='lobby')return deliver(pid,{t:'reject',msg:'Game already started'});
+      if(Object.keys(G.players).length>=8)return deliver(pid,{t:'reject',msg:'Room is full'});
+      addPlayer(pid,String(m.name||'Player').slice(0,14));broadcastLobby();break;
+    case 'pos':if(p&&Number.isFinite(m.lat)&&Number.isFinite(m.lng)){p.lat=m.lat;p.lng=m.lng;p.acc=m.acc||0;}break;
+    case 'tag':doTag(pid);break;
+    case 'power':usePower(pid,m.id,m.sound);break;
+    case 'photo':addPhoto(pid,m);break;
+    case 'sos':broadcast({t:'sos',name:p?p.name:'Player',lat:typeof m.lat==='number'?m.lat:null,lng:typeof m.lng==='number'?m.lng:null});break;
+  }
+}
+async function loadWeather(){
+  let w='clear',night=false,real=false;
+  try{const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${G.center.lat}&longitude=${G.center.lng}&current=weather_code,is_day`);const j=await r.json();const c=j.current.weather_code;
+    w=(c>=95||(c>=51&&c<=67)||(c>=80&&c<=82))?'rain':((c>=71&&c<=77)||c===85||c===86)?'snow':(c===45||c===48)?'fog':c>=2?'cloud':'clear';night=!j.current.is_day;real=true;}
+  catch(e){const h=new Date().getHours();night=h<7||h>=20;w=['clear','cloud','rain','fog'][Math.random()*4|0];}
+  const mult=({clear:1,cloud:1,fog:.8,rain:.75,snow:.8}[w])*(night?.85:1);
+  G.env={w,night,mult,real};
+}
+function initPowers(p){p.pw={};Object.entries(POWERS).forEach(([id,d])=>{if(d.role===p.role&&(!d.modes||d.modes.includes(G.mode)))p.pw[id]={uses:d.uses,ready:0,until:0};});}
+async function startGame(){
+  const ps=Object.values(G.players);
+  if(ps.length<2)return toast('Need at least 2 players (add a bot to test)','warn');
+  if(!G.center)return toast('Set the play area first','warn');
+  if(!ps.some(p=>p.role==='seeker')){const hum=ps.filter(p=>!p.bot);hum[Math.random()*hum.length|0].role='seeker';}
+  if(!ps.some(p=>p.role==='hider'))return toast('Need at least one hider','warn');
+  $('#bStart').disabled=true;await loadWeather();$('#bStart').disabled=false;
+  ps.filter(p=>p.bot).forEach(b=>{const q=offset(G.center,Math.random()*G.radius*.8,Math.random()*360);b.lat=q.lat;b.lng=q.lng;});
+  if(G.mode==='reverse'){let best=null,bs=-1;const hs=ps.filter(p=>p.role==='hider'&&p.lat!=null);
+    for(let i=0;i<30;i++){const c=offset(G.center,G.radius*(.5+Math.random()*.35),Math.random()*360);const s=hs.length?Math.min(...hs.map(h=>dist(h,c))):1;if(s>bs){bs=s;best=c;}}G.goal=best;}else G.goal=null;
+  ps.forEach(p=>{initPowers(p);p.score=0;p.closeSec=0;});G.ping=null;G.boardAt=0;
+  G.phase='hiding';G.t0=Date.now();
+  clearInterval(G.tick);G.tick=setInterval(tick,1000);
+  broadcast(E(G.mode==='classic'?'Game on. Hiders: find a spot.':'Game on. Runners: the goal is on your map.','info'));
+  tick();
+}
+function snapshotFuzz(now){return Object.values(G.players).filter(h=>h.role==='hider'&&!h.caught&&!h.reached&&!h.gone&&h.lat!=null&&!active(h,'ghost',now)).map(h=>offset(h,Math.random()*25,Math.random()*360));}
+function usePower(pid,id,sound){
+  const p=G.players[pid],d=POWERS[id];if(!p||!d||!p.pw[id]||(G.phase!=='hiding'&&G.phase!=='seeking')||p.caught||p.reached)return;
+  if(G.phase==='hiding'&&p.role==='seeker')return deliver(pid,E('Seeker powers unlock when the hunt starts','warn'));
+  const s=p.pw[id],now=Date.now();if(s.uses<=0||now<s.ready)return deliver(pid,E('Not ready yet','warn'));
+  if(id==='decoy'&&p.lat==null)return;
+  let targets=null;
+  if(id==='noise'){targets=Object.values(G.players).filter(h=>h.role==='hider'&&!h.caught&&!h.reached&&!h.gone);if(!targets.length)return;}
+  s.uses--;s.ready=now+d.cool*1000;s.until=now+d.dur*1000;p.powers++;
+  if(id==='decoy')p.decoy=offset(p,40+Math.random()*30,Math.random()*360);
+  if(id==='radar')G.ping={until:now+d.dur*1000,pts:snapshotFuzz(now)};
+  if(id==='noise'){
+    const keys=Object.keys(NOISES),snd=NOISES[sound]?sound:keys[Math.random()*keys.length|0];
+    targets.forEach(h=>deliver(h.id,{t:'noise',sound:snd,from:p.name}));
+    return deliver(pid,E(`Noise sent to ${targets.length} hider(s): ${NOISES[snd]}`,'good'));
+  }
+  deliver(pid,E(d.name+' activated','good'));
+}
+function doTag(sid){
+  const s=G.players[sid];if(G.phase!=='seeking'||!s||s.role!=='seeker'||s.lat==null)return;
+  let best=null,bd=1e9;Object.values(G.players).forEach(h=>{if(h.role!=='hider'||h.caught||h.reached||h.gone||h.lat==null)return;const d=dist(s,h);if(d<bd){bd=d;best=h;}});
+  if(!best||bd>TAG_RANGE+Math.min(s.acc||0,10))return deliver(sid,E(`Nobody within reach — get within ${TAG_RANGE} m`,'warn'));
+  best.caught=true;s.tags++;s.score+=PTS.tag;
+  broadcast(E(`${s.name} tagged ${best.name}`,'tag'));
+  deliver(sid,{t:'tagged',target:best.id,name:best.name});
+  checkEnd();
+}
+function addPhoto(pid,m){const s=G.players[pid],t=G.players[m.target];if(!s||!t||!t.caught||typeof m.img!=='string'||m.img.length>400000||!m.img.startsWith('data:image/'))return;s.photos++;broadcast({t:'photo',by:s.name,target:t.name,img:m.img,ts:Date.now()});}
+function checkEnd(){
+  const ps=Object.values(G.players);
+  if(!ps.some(p=>p.role==='hider'&&!p.caught&&!p.reached&&!p.gone)){endGame('all');return true;}
+  if(!ps.some(p=>p.role==='seeker'&&!p.gone)){endGame('seeker left');return true;}
+  return false;
+}
+function endGame(reason){
+  clearInterval(G.tick);G.phase='over';
+  const ps=Object.values(G.players),hid=ps.filter(p=>p.role==='hider'),caught=hid.filter(p=>p.caught).length,reached=hid.filter(p=>p.reached).length;
+  if(G.mode==='classic'&&reason!=='seeker left')hid.forEach(p=>{if(!p.caught&&!p.gone)p.score+=PTS.survive;});
+  let winner;
+  if(reason==='seeker left')winner='hiders';
+  else if(G.mode==='classic')winner=caught===hid.length?'seekers':'hiders';
+  else winner=reached*2>=hid.length?'hiders':'seekers';
+  broadcast({t:'end',reason,winner,mode:G.mode,env:G.env,players:ps.map(p=>({id:p.id,name:p.name,role:p.role,caught:p.caught,reached:p.reached,tags:p.tags,powers:p.powers,photos:p.photos,score:p.score}))});
+}
+function backToLobby(){
+  Object.keys(G.players).forEach(id=>{const p=G.players[id];if(p.gone&&!p.bot){delete G.players[id];return;}Object.assign(p,{caught:false,reached:false,expUntil:0,spot:null,pw:{},tags:0,photos:0,powers:0,outSince:0,decoy:null,score:0,closeSec:0,lp:null,stillSince:0});if(p.bot){p.lat=p.lng=null;}});
+  G.phase='lobby';G.ping=null;broadcastLobby();
+}
+function bots(hiders){
+  hiders.filter(h=>h.bot).forEach(b=>{
+    if(G.mode==='classic'){if(Math.random()<.02){const q=offset(b,22,Math.random()*360);b.lat=q.lat;b.lng=q.lng;}else if(b.spot&&dist(b,b.spot)>5&&Math.random()<.2){b.lat=b.spot.lat;b.lng=b.spot.lng;}}
+    else if(G.goal){const d=dist(b,G.goal);const q=offset(b,Math.min(1.5,d),bearing(b,G.goal)+(Math.random()-.5)*50);b.lat=q.lat;b.lng=q.lng;}
+  });
+}
+function tick(){
+  if(!G||(G.phase!=='hiding'&&G.phase!=='seeking'))return;
+  const now=Date.now(),ps=Object.values(G.players);
+  const hiders=()=>ps.filter(p=>p.role==='hider'&&!p.caught&&!p.reached&&!p.gone);
+  if(G.phase==='hiding'&&now>=G.t0+G.hide*1000){
+    G.phase='seeking';G.t0=now;G.nextPing=now+45000;G.boardAt=0;
+    ps.forEach(p=>{if(p.role==='hider'&&p.lat!=null)p.spot={lat:p.lat,lng:p.lng};p.lp=null;});
+    broadcast(E('Seeker released. '+(G.mode==='classic'?'Hiders: stay near your spot.':'Runners: reach the goal.'),'info'));
+  }
+  if(G.phase==='seeking'&&now>=G.t0+G.seek*1000)return endGame('time');
+  if(G.phase==='seeking'){
+    bots(hiders());
+    hiders().forEach(h=>{
+      if(h.lat==null)return;
+      if(!h.lp||dist(h,h.lp)>8){h.lp={lat:h.lat,lng:h.lng};h.stillSince=now;}
+      if(ps.some(s=>s.role==='seeker'&&!s.gone&&s.lat!=null&&dist(s,h)<=CLOSE_RANGE&&(s.acc||0)<=25&&(h.acc||0)<=25)){
+        h.score+=PTS.close;h.closeSec=(h.closeSec||0)+1;
+        if(h.closeSec%5===0)deliver(h.id,E(`Danger zone: ${h.closeSec} s within ${CLOSE_RANGE} m of the seeker`,'good'));
+      }
+      if(dist(h,G.center)>G.radius){h.outSince=h.outSince||now;if(now-h.outSince>20000)h.expUntil=Math.max(h.expUntil,now+3000);}else h.outSince=0;
+      if(G.mode==='classic'&&h.spot){
+        const leash=LEASH*(active(h,'stretch',now)?2:1);
+        if(dist(h,h.spot)>leash){
+          if(!active(h,'ghost',now)){
+            if(now>h.expUntil){ps.filter(s=>s.role==='seeker').forEach(s=>deliver(s.id,E(`${h.name} moved — exact position revealed`,'warn')));deliver(h.id,E('You moved too far — the seeker can see you. Stay still 20 s to re-hide.','warn'));}
+            h.expUntil=now+8000;
+          }
+          if(now-h.stillSince>=RELOCK_MS){h.spot={lat:h.lat,lng:h.lng};deliver(h.id,E('New hiding spot locked','good'));}
+        }
+      }
+      if(G.mode==='reverse'&&G.goal&&dist(h,G.goal)<=GOAL_RANGE){h.reached=true;h.score+=PTS.goal;broadcast(E(`${h.name} reached the goal`,'good'));}
+    });
+    if(G.mode==='reverse'&&now>=G.nextPing){G.nextPing=now+45000;G.ping={until:now+6000,pts:snapshotFuzz(now)};broadcast(E('Radar ping — the seeker sees blurry positions','warn'));}
+    if(checkEnd())return;
+    if(now-G.boardAt>=BOARD_MS){G.boardAt=now;broadcast({t:'board',rows:ps.map(p=>({id:p.id,n:p.name,r:p.role,s:p.score})).sort((a,b)=>b.s-a.s)});}
+  }
+  const hs=hiders();
+  const base={t:'state',phase:G.phase,mode:G.mode,left:(G.phase==='hiding'?G.t0+G.hide*1000:G.t0+G.seek*1000)-now,center:G.center,radius:G.radius,goal:G.goal,env:G.env,alive:hs.length};
+  eachHuman(id=>deliver(id,view(G.players[id],base,now,hs)));
+}
+function view(p,base,now,hs){
+  const v={...base,you:{role:p.role,caught:p.caught,reached:p.reached,exposed:now<p.expUntil&&!active(p,'ghost',now),spot:p.spot,pw:{}},marks:[],near:0};
+  Object.keys(p.pw).forEach(id=>{const s=p.pw[id];v.you.pw[id]={uses:s.uses,cd:Math.max(0,s.ready-now),on:Math.max(0,s.until-now)};});
+  const all=Object.values(G.players).filter(o=>o.id!==p.id&&!o.gone&&o.lat!=null);
+  if(p.role==='hider'){all.filter(o=>o.role==='seeker').forEach(o=>v.marks.push({k:'seeker',n:o.name,lat:o.lat,lng:o.lng}));}
+  else if(G.phase==='seeking'){
+    all.filter(o=>o.role==='hider'&&!o.caught&&!o.reached).forEach(h=>{
+      if(!active(h,'ghost',now)&&now<h.expUntil)v.marks.push({k:'exposed',n:h.name,lat:h.lat,lng:h.lng});
+      if(active(h,'decoy',now)&&h.decoy)v.marks.push({k:'exposed',n:h.name,lat:h.decoy.lat,lng:h.decoy.lng});
+    });
+    if(G.ping&&now<G.ping.until)G.ping.pts.forEach(q=>v.marks.push({k:'ping',lat:q.lat,lng:q.lng}));
+    if(p.lat!=null){let best=1e9;hs.forEach(h=>{if(h.lat!=null&&!active(h,'ghost',now))best=Math.min(best,dist(p,h));});
+      const range=DETECT*G.env.mult*(active(p,'sonar',now)?2:1);v.near=best>range?0:best<range*.35?3:best<range*.7?2:1;}
+  }
+  return v;
+}
+
+/* ============ CLIENT ============ */
+function clientHandle(m){
+  switch(m.t){
+    case 'reject':toast(m.msg,'warn');leave();break;
+    case 'lobby':
+      if(screen!=='lobby'){inGame=false;V=null;fit.on=false;board=[];clearMap();closeModal();$('#near').classList.add('hidden');$('#blind').classList.add('hidden');showScreen('lobby');firstLobby=true;}
+      LB=m;renderLobby();break;
+    case 'state':onState(m);break;
+    case 'board':board=m.rows;if(V)$('#alive').textContent=`${V.alive} hiding · ${myRankText()}`;break;
+    case 'event':toast(m.msg,m.kind);if(m.kind==='tag')buzz(300);break;
+    case 'tagged':lastTag={id:m.target,name:m.name};buzz(300);
+      modal(`<h3>Tagged: ${esc(m.name)}</h3><p class="mu">Add a proof photo to share with the group.</p><button class="p wide" id="bPhoto">Take photo</button><button class="wide" onclick="closeModal()">Skip</button>`);
+      $('#bPhoto').onclick=()=>$('#cam').click();break;
+    case 'photo':gallery.push(m);$('#gcount').textContent=gallery.length;toast(`${m.by} shared a photo of ${m.target}`,'good');break;
+    case 'noise':onNoise(m);break;
+    case 'sos':showSOS(m);break;
+    case 'end':onEnd(m);break;
+  }
+}
+function renderLobby(){
+  if(!LB)return;
+  $('#rcode').textContent=LB.code;
+  $('#plist').innerHTML=LB.players.map(p=>`<div class="pl" data-id="${esc(p.id)}"><span>${esc(p.name)}${p.bot?' (bot)':''}${p.id===me.id?' (you)':''}</span><span class="pill ${p.role}">${p.role}</span></div>`).join('');
+  $('#hostcfg').classList.toggle('hidden',!isHost);
+  $('#info').textContent=isHost?'':`${LB.mode==='classic'?'Classic':'Reverse'} · hide ${LB.hide}s · ${LB.seek/60} min · radius ${LB.radius} m — waiting for the host to start`;
+  drawArea(LB.center,LB.radius,firstLobby&&!!LB.center);if(LB.center)firstLobby=false;
+}
+$('#bShare').onclick=async()=>{if(!LB)return;const url=location.href.split('#')[0]+'#'+LB.code,text=`Join my Hide & Seek game. Code: ${LB.code}`;
+  try{if(navigator.share)await navigator.share({title:'Hide & Seek',text,url});else{await navigator.clipboard.writeText(text+' '+url);toast('Invite copied','good');}}catch(e){}};
+
+function myRankText(){const i=board.findIndex(r=>r.id===me.id);return i<0?'rank —':`#${i+1} · ${board[i].s} pts`;}
+function enterGame(){inGame=true;showScreen('game');fit={on:true,dist:0,last:myPos?{lat:myPos.lat,lng:myPos.lng}:null};follow=true;board=[];keepAwake();buildBar();if(myPos)map.setView([myPos.lat,myPos.lng],17);}
+function onState(m){
+  m.at=Date.now();V=m;if(!inGame)enterGame();
+  const y=m.you,e=m.env;
+  $('#blind').classList.toggle('hidden',!(y.role==='seeker'&&m.phase==='hiding'));
+  const r=$('#role');r.textContent=y.role;r.className='chip '+y.role;
+  $('#env').textContent=`${{clear:'Clear',cloud:'Cloudy',rain:'Rain',fog:'Fog',snow:'Snow'}[e.w]}${e.night?' · Night':''} · detection ×${e.mult.toFixed(2)}`;
+  $('#alive').textContent=`${m.alive} hiding · ${myRankText()}`;
+  drawState();nearUI();updateStatus();updateBar();
+}
+function drawState(){
+  const v=V;drawArea(v.center,v.radius);
+  $('#map').classList.toggle('night',!!v.env.night);$('#fx').className=v.env.w==='rain'?'rain':v.env.w==='fog'?'fog':'';
+  const list=[];
+  v.marks.forEach((m,i)=>{if(m.k==='ping')return;list.push({key:m.k+i,lat:m.lat,lng:m.lng,html:mkHtml(m.k,m.n)});});
+  if(v.goal)list.push({key:'goal',lat:v.goal.lat,lng:v.goal.lng,html:mkHtml('goal','GOAL')});
+  if(v.you.spot)list.push({key:'spot',lat:v.you.spot.lat,lng:v.you.spot.lng,html:mkHtml('spot','spot')});
+  setMarks(list);
+  pingL.clearLayers();v.marks.filter(m=>m.k==='ping').forEach(m=>L.circle([m.lat,m.lng],{radius:30,color:'#f59e0b',weight:1,fillOpacity:.25}).addTo(pingL));
+  if(v.mode==='classic'&&v.you.spot){const r=LEASH*((v.you.pw.stretch&&v.you.pw.stretch.on>0)?2:1),ll=[v.you.spot.lat,v.you.spot.lng];
+    if(!leashC)leashC=L.circle(ll,{radius:r,weight:1,fillOpacity:.08}).addTo(map);leashC.setLatLng(ll);leashC.setRadius(r);leashC.setStyle({color:v.you.exposed?'#ef4444':'#22c55e'});}
+  else if(leashC){map.removeLayer(leashC);leashC=null;}
+  if(v.goal){const ll=[v.goal.lat,v.goal.lng];if(!goalC)goalC=L.circle(ll,{radius:GOAL_RANGE,color:'#22c55e',weight:2,fillOpacity:.25}).addTo(map);goalC.setLatLng(ll);}
+}
+function nearUI(){
+  const y=V.you,n=$('#near');let txt='',col='';
+  if(y.role==='seeker'&&V.phase==='seeking'&&V.near>0){
+    txt=['','Signal weak — someone is around','Signal medium — someone is close','Signal strong — very close'][V.near];col=['','#1e3a5f','#7c4a03','#7f1d1d'][V.near];
+    const now=Date.now();if(now-lastNear>(V.near===3?900:V.near===2?1800:3000)){lastNear=now;buzz(V.near===3?[200,80,200,80,200]:V.near===2?[200,100,200]:[200]);beep(500+V.near*200);}
+  }else if(y.role==='hider'&&!y.caught&&!y.reached&&V.phase==='seeking'){
+    const sk=V.marks.filter(m=>m.k==='seeker');
+    if(sk.length&&myPos){const d=Math.round(Math.min(...sk.map(m=>dist(myPos,m))));txt=`Seeker ${d} m`+(d<=CLOSE_RANGE?' · scoring +1/s':'');col=d<30?'#7f1d1d':d<70?'#7c4a03':'#1f2933';if(d<25&&Date.now()-lastNear>2000){lastNear=Date.now();buzz([150,80,150]);}}
+  }
+  if(V.center&&myPos&&dist(myPos,V.center)>V.radius){txt='Outside play area — return'+(txt?' · '+txt:'');col='#7f1d1d';if(Date.now()-lastOut>5000){lastOut=Date.now();buzz(500);}}
+  n.textContent=txt;n.style.background=col;n.classList.toggle('hidden',!txt);
+}
+function updateStatus(){
+  const y=V.you;let s='';
+  if(y.caught)s='Tagged — spectating';
+  else if(y.reached)s='Goal reached';
+  else if(y.role==='hider'){
+    if(V.phase==='hiding')s=V.mode==='classic'?'Find a spot — it locks when the timer ends':'Get ready — head for the goal when the seeker is released';
+    else if(V.mode==='classic'&&y.spot&&myPos){const d=Math.round(dist(myPos,y.spot)),lim=LEASH*((y.pw.stretch&&y.pw.stretch.on>0)?2:1);s=y.exposed?`EXPOSED — return to your spot (${d} m) or stay still 20 s to re-hide`:`Spot ${d} m / ${lim} m leash`;}
+    else if(V.mode==='reverse'&&V.goal&&myPos)s=`Goal ${Math.round(dist(myPos,V.goal))} m away`;
+  }else s=V.phase==='seeking'?`${V.alive} hider(s) left · tag range ${TAG_RANGE} m`:'Waiting for hiders to hide';
+  $('#status').textContent=s;$('#status').className=y.exposed?'bad':'';
+}
+function buildBar(){
+  const y=V.you;let h='';
+  if(y.role==='seeker')h+='<button class="big" id="btnTag">TAG</button>';
+  Object.keys(y.pw).forEach(id=>{h+=`<button class="pw" data-p="${id}">${POWERS[id].name}<small></small></button>`;});
+  $('#acts').innerHTML=h;
+}
+function updateBar(){
+  if(!V)return;const el=Date.now()-V.at,y=V.you;
+  document.querySelectorAll('#acts .pw').forEach(b=>{const s=y.pw[b.dataset.p];if(!s)return;
+    const on=Math.ceil(Math.max(0,s.on-el)/1000),cd=Math.ceil(Math.max(0,s.cd-el)/1000);
+    b.querySelector('small').textContent=on?`active ${on}s`:s.uses<=0?'used up':cd?`${cd}s`:`${s.uses} left`;
+    b.disabled=!!(on||cd||s.uses<=0||y.caught||y.reached||(V.phase==='hiding'&&y.role==='seeker'));});
+}
+$('#acts').onclick=e=>{const b=e.target.closest('button');if(!b||!V)return;
+  if(b.id==='btnTag'){if(V.phase!=='seeking')return toast('Wait until the hunt starts','warn');b.disabled=true;setTimeout(()=>b.disabled=false,3000);send({t:'tag'});}
+  else if(b.dataset.p==='noise')openNoiseMenu();
+  else if(b.dataset.p)send({t:'power',id:b.dataset.p});};
+setInterval(()=>{if(!V||!inGame)return;
+  const s=Math.ceil(Math.max(0,V.left-(Date.now()-V.at))/1000),t=Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+  $('#timer').textContent=t;$('#btimer').textContent=t;
+  $('#phase').textContent=V.phase==='hiding'?(V.mode==='classic'?'Hiding':'Head start'):(V.mode==='classic'?'Seeking':'Reverse');
+  $('#fitc').textContent=`${Math.round(fit.dist/.75)} steps · ${(fit.dist/1000).toFixed(2)} km`;updateBar();},250);
+$('#bFollow').onclick=()=>{follow=true;if(myPos)map.panTo([myPos.lat,myPos.lng]);};
+
+/* noise power-up */
+function openNoiseMenu(){
+  modal(`<h3>Noise</h3><p class="mu">Plays a goofy sound at full volume on every hider's phone. Listen for it.</p><div class="grid">${Object.entries(NOISES).map(([k,v])=>`<button data-k="${k}">${v}</button>`).join('')}<button class="p" data-k="">Random</button></div><button class="wide" onclick="closeModal()">Cancel</button>`);
+  $('#mbox').querySelectorAll('button[data-k]').forEach(b=>b.onclick=()=>{send({t:'power',id:'noise',sound:b.dataset.k});closeModal();});
+}
+function onNoise(m){
+  toast(`${m.from} used Noise${NOISES[m.sound]?': '+NOISES[m.sound]:''}`,'warn',5000);
+  buzz([300,100,300,100,300]);
+  if(noiseOn)playNoise(m.sound);
+}
+function playNoise(id){
+  try{
+    actx=actx||new(window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended')actx.resume();
+    const t0=actx.currentTime+.05;
+    const comp=actx.createDynamicsCompressor();comp.threshold.value=-20;comp.ratio.value=12;
+    const out=actx.createGain();out.gain.value=1;comp.connect(out);out.connect(actx.destination);
+    const tone=(type,f0,f1,at,dur,vol=.8)=>{
+      const o=actx.createOscillator(),g=actx.createGain();
+      o.type=type;o.frequency.setValueAtTime(f0,t0+at);o.frequency.exponentialRampToValueAtTime(f1,t0+at+dur);
+      g.gain.setValueAtTime(.0001,t0+at);g.gain.exponentialRampToValueAtTime(vol,t0+at+.03);g.gain.exponentialRampToValueAtTime(.0001,t0+at+dur);
+      o.connect(g);g.connect(comp);o.start(t0+at);o.stop(t0+at+dur+.05);
+    };
+    switch(id){
+      case 'duck':for(let i=0;i<3;i++){tone('sawtooth',620,300,i*.3,.22,.9);tone('square',310,150,i*.3,.22,.4);}break;
+      case 'boing':tone('triangle',150,1300,0,.35,.9);tone('triangle',1300,180,.35,.55,.9);break;
+      case 'trombone':[[233,0,.45],[220,.5,.45],[208,1,.45]].forEach(n=>tone('sawtooth',n[0],n[0]*.98,n[1],n[2],.7));tone('sawtooth',196,120,1.5,1.1,.7);break;
+      case 'raspberry':{
+        const o=actx.createOscillator(),g=actx.createGain(),l=actx.createOscillator(),lg=actx.createGain();
+        o.type='sawtooth';o.frequency.setValueAtTime(110,t0);o.frequency.exponentialRampToValueAtTime(55,t0+1.2);
+        g.gain.value=.5;l.type='square';l.frequency.value=30;lg.gain.value=.5;
+        l.connect(lg);lg.connect(g.gain);o.connect(g);g.connect(comp);
+        o.start(t0);l.start(t0);o.stop(t0+1.3);l.stop(t0+1.3);break;}
+      case 'horn':[440,554,659].forEach(f=>{tone('sawtooth',f,f*.99,0,.9,.5);tone('sawtooth',f,f*.99,1.1,.9,.5);});break;
+      case 'cuckoo':[0,.35,1,1.35].forEach((a,i)=>tone('sine',i%2?659:784,i%2?650:775,a,.28,1));break;
+    }
+  }catch(e){}
+}
+$('#pranks').checked=noiseOn;
+$('#pranks').onchange=e=>{noiseOn=e.target.checked;LS.set('hs_noise',noiseOn);};
+$('#bTest').onclick=()=>{const k=Object.keys(NOISES);playNoise(k[Math.random()*k.length|0]);};
+
+/* leaderboard */
+function showBoard(){modal(`<h3>Leaderboard</h3><p class="mu small">Updates every 30 s. Hider: +${PTS.close}/s within ${CLOSE_RANGE} m of a seeker, +${PTS.survive} for surviving (Classic), +${PTS.goal} for reaching the goal (Reverse). Seeker: +${PTS.tag} per tag.</p>${board.length?board.map((r,i)=>`<div class="pl"><span>${i+1}. ${esc(r.n)}${r.id===me.id?' (you)':''} <span class="pill ${r.r}">${r.r}</span></span><b>${r.s} pts</b></div>`).join(''):'<p class="mu">First update when the hunt starts.</p>'}<button class="wide" onclick="closeModal()">Close</button>`);}
+$('#bBoard').onclick=showBoard;
+
+/* photos */
+function shrink(file,max=480){return new Promise(res=>{const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const k=Math.min(1,max/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);c.getContext('2d').drawImage(im,0,0,c.width,c.height);res(c.toDataURL('image/jpeg',.6));};im.src=r.result;};r.readAsDataURL(file);});}
+$('#cam').onchange=async e=>{const f=e.target.files[0];e.target.value='';if(!f||!lastTag)return;const img=await shrink(f);send({t:'photo',target:lastTag.id,img});closeModal();toast('Photo shared','good');};
+function showGallery(){modal(`<h3>Photos</h3>${gallery.length?gallery.map(p=>`<div class="ph"><img src="${p.img}"><div class="small mu">${esc(p.by)} tagged ${esc(p.target)} · ${new Date(p.ts).toLocaleTimeString()}</div><a download="hide-seek-${p.ts}.jpg" href="${p.img}">Save</a></div>`).join(''):'<p class="mu">No photos yet.</p>'}<button class="wide" onclick="closeModal()">Close</button>`);}
+$('#bGal').onclick=showGallery;
+
+/* emergency — single tap */
+$('#bSOS').onclick=()=>openSOS();
+function openSOS(){
+  buzz(100);
+  modal(`<h3>Emergency</h3><a class="btnlink" href="tel:112">Call emergency services (112)</a><button class="wide" id="sosShare">Share my location</button><button class="wide" id="sosAlert">Alert all players</button><button class="wide" id="sosLeave">Leave the game</button><button class="wide" onclick="closeModal()">Close</button><p class="mu small">112 works across the EU; dial 911 in the US.</p>`);
+  $('#sosShare').onclick=async()=>{const u=myPos?`https://maps.google.com/?q=${myPos.lat},${myPos.lng}`:'';if(!u)return toast('No GPS fix yet','warn');try{if(navigator.share)await navigator.share({title:'I need help',text:'I need help. My location: '+u});else{await navigator.clipboard.writeText(u);toast('Location link copied','good');}}catch(e){}};
+  $('#sosAlert').onclick=()=>{send({t:'sos',lat:myPos?myPos.lat:null,lng:myPos?myPos.lng:null});closeModal();toast('Players alerted','good');};
+  $('#sosLeave').onclick=()=>leave();
+}
+function showSOS(m){
+  toast(`${m.name} needs help`,'sos',20000);buzz([400,150,400,150,400]);beep(300,400);
+  if(m.lat!=null&&m.lng!=null){const x=L.marker([m.lat,m.lng],{icon:L.divIcon({className:'',html:mkHtml('sos',m.name),iconSize:[80,40],iconAnchor:[40,10]})}).addTo(map);setTimeout(()=>map.removeLayer(x),120000);
+    modal(`<h3>${esc(m.name)} needs help</h3><p><a href="https://maps.google.com/?q=${Number(m.lat)},${Number(m.lng)}" target="_blank" rel="noopener">Open their location</a></p><button class="wide" onclick="closeModal()">OK</button>`);}
+}
+
+/* end of game, achievements, stats */
+function onEnd(m){
+  inGame=false;fit.on=false;V=null;
+  ['#blind','#near'].forEach(s=>$(s).classList.add('hidden'));$('#fx').className='';
+  const mine=m.players.find(p=>p.id===me.id)||{},A=LS.get('hs_ach',{}),unlocked=[];
+  const add=id=>{if(!A[id]){A[id]=Date.now();unlocked.push(id);}};
+  if(mine.tags>=1)add('first_tag');if(mine.tags>=3)add('hunter');
+  if(mine.role==='hider'&&!mine.caught&&m.mode==='classic'&&m.reason!=='seeker left')add('survivor');
+  if(mine.reached)add('escape');if(fit.dist>=1000)add('walker');
+  if(m.env.w==='rain')add('rain');if(m.env.night)add('night');
+  if(mine.photos>=1)add('photog');if(m.players.length>=4)add('squad');if(mine.powers>=3)add('power');
+  LS.set('hs_ach',A);
+  const Lf=LS.get('hs_life',{games:0,dist:0,tags:0});Lf.games++;Lf.dist+=fit.dist;Lf.tags+=mine.tags||0;LS.set('hs_life',Lf);
+  const won=(m.winner==='seekers')===(mine.role==='seeker');
+  modal(`<h2>${won?'Victory':'Defeat'}</h2><p class="mu">${m.winner==='seekers'?'Seekers':'Hiders'} win${m.reason==='time'?' — time expired':''}.</p>
+   <h4>Final ranking</h4>
+   ${[...m.players].sort((a,b)=>b.score-a.score).map((p,i)=>`<div class="pl"><span>${i+1}. ${esc(p.name)} <span class="pill ${p.role}">${p.role}</span></span><span>${p.score} pts · ${p.role==='seeker'?p.tags+' tagged':p.caught?'tagged':p.reached?'escaped':'free'}</span></div>`).join('')}
+   <h4>Your activity (estimate)</h4><p>${Math.round(fit.dist/.75)} steps · ${(fit.dist/1000).toFixed(2)} km · ~${Math.round(fit.dist/1000*62)} kcal</p>
+   ${unlocked.length?'<h4>New achievements</h4>'+unlocked.map(k=>`<div class="pl"><span>${ACH[k][0]}</span><span class="mu small">${ACH[k][1]}</span></div>`).join(''):''}
+   ${isHost?'<button class="p wide" id="bAgain">Play again</button>':'<p class="mu">Waiting for the host…</p>'}
+   <button class="wide" id="bGal2">Photos (${gallery.length})</button><button class="wide" id="bExit">Leave</button>`);
+  if(isHost)$('#bAgain').onclick=()=>{closeModal();backToLobby();};
+  $('#bGal2').onclick=showGallery;$('#bExit').onclick=leave;
+}
+function showStats(){
+  const A=LS.get('hs_ach',{}),Lf=LS.get('hs_life',{games:0,dist:0,tags:0});
+  modal(`<h3>Stats</h3><div class="grid"><div class="stat"><b>${Lf.games}</b>games</div><div class="stat"><b>${(Lf.dist/1000).toFixed(1)} km</b>walked</div><div class="stat"><b>${Math.round(Lf.dist/.75)}</b>steps (est.)</div><div class="stat"><b>${Math.round(Lf.dist/1000*62)}</b>kcal (est.)</div></div>
+  <h4>Achievements ${Object.keys(A).length}/${Object.keys(ACH).length}</h4>`+Object.entries(ACH).map(([k,a])=>`<div class="pl ${A[k]?'':'lock'}"><span><b>${a[0]}</b><br><span class="mu small">${a[1]}</span></span><span class="small">${A[k]?'Unlocked':'Locked'}</span></div>`).join('')+'<button class="wide" onclick="closeModal()">Close</button>');
+}
+function showHow(){modal(`<h3>How to play</h3>
+<h4>Setup</h4><p>The host creates a room, taps the map to set the play area, shares the code and starts.</p>
+<h4>Classic</h4><p>Hiders pick a spot during the hiding timer, then it locks. The seeker is blindfolded until released. A hider who strays more than ${LEASH} m from their spot is revealed to the seeker for 8 s; staying still ${RELOCK_MS/1000} s outside the leash locks a new spot. The seeker gets signal alerts within ~${DETECT} m and taps TAG within ${TAG_RANGE} m.</p>
+<h4>Reverse</h4><p>Hiders must reach the goal without being tagged. The seeker gets a blurry radar ping every 45 s.</p>
+<h4>Points</h4><p>Hider: +${PTS.close}/s within ${CLOSE_RANGE} m of a seeker, +${PTS.survive} for surviving (Classic), +${PTS.goal} for reaching the goal (Reverse). Seeker: +${PTS.tag} per tag. The leaderboard updates every 30 s.</p>
+<h4>Power-ups</h4><p>Hiders: Ghost, Decoy, Stretch. Seekers: Radar, Sonar, Noise (a loud sound on every hider's phone).</p>
+<h4>Conditions</h4><p>Rain, fog and night shrink detection range. Staying outside the play area for 20 s exposes you.</p>
+<p class="mu small">Keep the screen on and this tab open. The host's phone runs the game.</p><button class="wide" onclick="closeModal()">Close</button>`);}
+$('#bStats').onclick=showStats;$('#bHow').onclick=showHow;
+$('#modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+
+/* init */
+$('#name').value=LS.get('hs_name','');
+if(location.hash.length>1)$('#code').value=location.hash.slice(1,6).toUpperCase();
+</script>
+</body></html>
